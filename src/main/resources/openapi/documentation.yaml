@@ -1,0 +1,307 @@
+openapi: 3.0.3
+info:
+  title: Сервер задач
+  version: 1.0.0
+  description: "CRUD задач и JWT. Чтение публичное. Создание, обновление и удаление требуют заголовок Authorization: Bearer. Пароль хранится как BCrypt-хэш."
+servers:
+  - url: http://localhost:8080
+tags:
+  - name: Задачи
+  - name: Аутентификация
+paths:
+  /:
+    get:
+      tags: [Задачи]
+      operationId: serviceInfo
+      summary: Описание сервиса
+      responses:
+        "200":
+          description: Имя и краткое описание API
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServiceInfo"
+  /tasks:
+    get:
+      tags: [Задачи]
+      operationId: listTasks
+      summary: Список задач
+      responses:
+        "200":
+          description: Все задачи, отсортированные по id
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Task"
+    post:
+      tags: [Задачи]
+      operationId: createTask
+      summary: Создать задачу
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTaskRequest"
+      responses:
+        "201":
+          description: Задача создана. Id назначает сервер
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /tasks/{id}:
+    parameters:
+      - $ref: "#/components/parameters/TaskId"
+    get:
+      tags: [Задачи]
+      operationId: getTask
+      summary: Получить задачу по id
+      responses:
+        "200":
+          description: Найденная задача
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      tags: [Задачи]
+      operationId: updateTask
+      summary: Заменить задачу
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTaskRequest"
+      responses:
+        "200":
+          description: Обновлённая задача
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    delete:
+      tags: [Задачи]
+      operationId: deleteTask
+      summary: Удалить задачу
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Задача удалена, тела нет
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /register:
+    post:
+      tags: [Аутентификация]
+      operationId: register
+      summary: Зарегистрировать пользователя
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      responses:
+        "201":
+          description: Пользователь создан. Пароль в ответ не входит
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /login:
+    post:
+      tags: [Аутентификация]
+      operationId: login
+      summary: Войти и получить JWT
+      description: "Пароль проверяется сверкой BCrypt-хэша. В токене есть срок действия и claim userId."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Токен выдан
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: "Токен из POST /login. Заголовок: Authorization Bearer."
+  parameters:
+    TaskId:
+      name: id
+      in: path
+      required: true
+      description: Положительное целое число
+      schema:
+        type: integer
+        format: int32
+        minimum: 1
+  responses:
+    BadRequest:
+      description: Неверное тело или path
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Unauthorized:
+      description: Нет токена, токен недействителен или неверный пароль
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotFound:
+      description: Задача или маршрут не найдены
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Conflict:
+      description: Логин или название уже заняты
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+  schemas:
+    Priority:
+      type: string
+      enum: [LOW, MEDIUM, HIGH]
+    Task:
+      type: object
+      required: [id, title, done, priority]
+      properties:
+        id:
+          type: integer
+          format: int32
+        title:
+          type: string
+        done:
+          type: boolean
+        priority:
+          $ref: "#/components/schemas/Priority"
+    CreateTaskRequest:
+      type: object
+      required: [title]
+      description: "Поле id не передаётся, его назначает сервер. done по умолчанию false, priority по умолчанию MEDIUM."
+      properties:
+        title:
+          type: string
+        done:
+          type: boolean
+        priority:
+          $ref: "#/components/schemas/Priority"
+    UpdateTaskRequest:
+      type: object
+      required: [title, done, priority]
+      description: Полная замена задачи. Поле id в тело не входит.
+      properties:
+        title:
+          type: string
+        done:
+          type: boolean
+        priority:
+          $ref: "#/components/schemas/Priority"
+    RegisterRequest:
+      type: object
+      required: [login, password]
+      properties:
+        login:
+          type: string
+          description: "3-32 символа: латиница, цифры, _ и -."
+        password:
+          type: string
+          description: От 6 до 72 символов. В хранилище попадает только хэш.
+    LoginRequest:
+      type: object
+      required: [login, password]
+      properties:
+        login:
+          type: string
+        password:
+          type: string
+    UserResponse:
+      type: object
+      required: [id, login]
+      properties:
+        id:
+          type: integer
+          format: int32
+        login:
+          type: string
+    TokenResponse:
+      type: object
+      required: [token, tokenType, expiresIn, userId]
+      properties:
+        token:
+          type: string
+        tokenType:
+          type: string
+        expiresIn:
+          type: integer
+          format: int64
+          description: Срок действия токена в секундах
+        userId:
+          type: integer
+          format: int32
+          description: Тот же идентификатор записан в claim userId
+    ServiceInfo:
+      type: object
+      required: [name, description]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+    ErrorResponse:
+      type: object
+      required: [error, message]
+      properties:
+        error:
+          type: string
+        message:
+          type: string
